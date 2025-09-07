@@ -25,8 +25,12 @@ say(){ printf "%b%s%b\n" "$1" "$2" "$RST" >&2; }
 
 # -- helpers --
 calc(){ bc -l <<<"$1"; }
-# FIX: usa un subshell per catturare SOLO l’output di `time`
-dur(){ ( command time -f "%e" "$@" ) 2>&1 >/dev/null; }
+
+dur(){
+  local t
+  TIMEFORMAT=%R
+  { time "$@" >/dev/null 2>&1; } 2> >(read t; echo "$t")
+}
 med(){ sort -g | awk '{a[NR]=$1} END{m=int((NR+1)/2); print a[m]}'; }
 int(){ cut -d. -f1; }
 
