@@ -25,7 +25,8 @@ say(){ printf "%b%s%b\n" "$1" "$2" "$RST" >&2; }
 
 # -- helpers --
 calc(){ bc -l <<<"$1"; }
-dur(){ command time -f "%e" "$@" 2>&1 >/dev/null; }   # FIX: ora ritorna i secondi
+# FIX: usa un subshell per catturare SOLO l’output di `time`
+dur(){ ( command time -f "%e" "$@" ) 2>&1 >/dev/null; }
 med(){ sort -g | awk '{a[NR]=$1} END{m=int((NR+1)/2); print a[m]}'; }
 int(){ cut -d. -f1; }
 
@@ -33,7 +34,7 @@ int(){ cut -d. -f1; }
 say "$BLD$CYN" "┌─ bench.sh • tiny normalized benchmark • higher is better ─┐"
 
 cpu_single(){
-  vals=$(seq "$RUNS" | while read _; do dur bash -c 'echo "scale=5000;4*a(1)"|bc -l -q'; done)
+  vals=$(seq "$RUNS" | while read _; do dur bash -c 'echo "scale=5000;4*a(1)" | bc -l -q'; done)
   t=$(printf "%s\n" "$vals" | med)
   [ -z "$t" ] && return
   p=$(calc "1000*$CPU_BASE_S/($t+0.000001)" | int)
