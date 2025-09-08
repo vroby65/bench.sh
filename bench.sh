@@ -2,12 +2,12 @@
 # bench.sh - tiny normalized CLI benchmark (higher is better, ~1000 baseline)
 
 export LC_ALL=C LANG=C
-SIZE_MB=${SIZE_MB:-512}
+SIZE_MB=${SIZE_MB:-128}
 RUNS=${RUNS:-3}
-CPU_BASE_S=${CPU_BASE_S:-12.5}
-CPU_MULTI_BASE_S=${CPU_MULTI_BASE_S:-8.0}
-RAM_BASE_S_512=${RAM_BASE_S_512:-0.035}
-DISK_BASE_S_512=${DISK_BASE_S_512:-0.70}
+CPU_BASE_S=${CPU_BASE_S:-2.5}          # baseline single core (π 1000d)
+CPU_MULTI_BASE_S=${CPU_MULTI_BASE_S:-1.5} # baseline multi (π 500d × 1 core)
+RAM_BASE_S_128=${RAM_BASE_S_128:-0.01}    # baseline RAM 128 MB
+DISK_BASE_S_128=${DISK_BASE_S_128:-0.20}  # baseline DISK 128 MB
 GPU_BASE_FPS=${GPU_BASE_FPS:-3000}
 
 # weights (should sum ~100)
@@ -25,7 +25,6 @@ say(){ printf "%b%s%b\n" "$1" "$2" "$RST" >&2; }
 
 # -- helpers --
 calc(){ bc -l <<<"$1"; }
-
 dur(){
   local t
   TIMEFORMAT=%R
@@ -38,10 +37,10 @@ int(){ cut -d. -f1; }
 say "$BLD$CYN" "┌─ bench.sh • tiny normalized benchmark • higher is better ─┐"
 
 cpu_single(){
-  vals=$(seq "$RUNS" | while read _; do dur bash -c 'echo "scale=5000;4*a(1)" | bc -l -q'; done)
+  vals=$(seq "$RUNS" | while read _; do dur bash -c 'echo "scale=1000;4*a(1)" | bc -l -q'; done)
   t=$(printf "%s\n" "$vals" | med)
   [ -z "$t" ] && return
-  p=$(calc "1000*$CPU_BASE_S/($t+0.000001)" | int)
+  p=$(calc "1000*sqrt($CPU_BASE_S/($t+0.000001))" | int)
   say "$MAG" "CPU 1-core: ${t}s → ${p} pts"
   echo "$p"
 }
@@ -51,7 +50,7 @@ cpu_multi(){
   vals=$(seq "$RUNS" | while read _; do
     dur bash -c "
       for i in \$(seq $cores); do
-        echo 'scale=2000;4*a(1)' | bc -l -q >/dev/null &
+        echo 'scale=500;4*a(1)' | bc -l -q >/dev/null &
       done
       wait
     "
@@ -59,7 +58,7 @@ cpu_multi(){
   t=$(printf "%s\n" "$vals" | med)
   [ -z "$t" ] && return
   base=$(calc "$CPU_MULTI_BASE_S/$cores")
-  p=$(calc "1000*$base/($t+0.000001)" | int)
+  p=$(calc "1000*sqrt($base/($t+0.000001))" | int)
   say "$CYN" "CPU ${cores}-core: ${t}s → ${p} pts"
   echo "$p"
 }
@@ -68,8 +67,8 @@ ram(){
   vals=$(seq "$RUNS" | while read _; do dur dd if=/dev/zero of=/dev/null bs=64K count=$((SIZE_MB*1024/64)) status=none; done)
   t=$(printf "%s\n" "$vals" | med)
   [ -z "$t" ] && return
-  base=$(calc "$RAM_BASE_S_512*($SIZE_MB/512)")
-  p=$(calc "1000*$base/($t+0.000001)" | int)
+  base=$(calc "$RAM_BASE_S_128*($SIZE_MB/128)")
+  p=$(calc "1000*sqrt($base/($t+0.000001))" | int)
   say "$GRN" "RAM: ${t}s → ${p} pts"
   echo "$p"
 }
@@ -83,8 +82,8 @@ disk(){
   done)
   t=$(printf "%s\n" "$vals" | med)
   [ -z "$t" ] && return
-  base=$(calc "$DISK_BASE_S_512*($SIZE_MB/512)")
-  p=$(calc "1000*$base/($t+0.000001)" | int)
+  base=$(calc "$DISK_BASE_S_128*($SIZE_MB/128)")
+  p=$(calc "1000*sqrt($base/($t+0.000001))" | int)
   say "$YLW" "DISK: ${t}s → ${p} pts"
   echo "$p"
 }
@@ -97,7 +96,7 @@ gpu(){
   done)
   fps=$(printf "%s\n" "$vals" | med)
   [ -z "$fps" ] && { say "$DIM$BLU" "GPU: no FPS read (skipped)"; return; }
-  p=$(calc "1000*($fps)/$GPU_BASE_FPS" | int)
+  p=$(calc "1000*sqrt(($fps)/$GPU_BASE_FPS)" | int)
   say "$BLU" "GPU: ${fps} FPS → ${p} pts"
   echo "$p"
 }
